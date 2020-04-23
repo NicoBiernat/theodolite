@@ -23,13 +23,13 @@ stages:
 build:
   stage: build
   tags:
-    - dockerex
+    - linux64
   script: ./gradlew --build-cache assemble
 
 test:
   stage: test
   tags:
-    - dockerex
+    - linux64
   script: ./gradlew test
 
 .checkstyle:
