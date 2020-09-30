@@ -7,6 +7,9 @@ import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
 import theodolite.uc4.application.util.HourOfDayKey;
 
+/**
+ * This {@link ProcessWindowFunction} runs after the rolling aggregation for adding the key back to the result
+ */
 public class HourOfDayProcessWindowFunction extends ProcessWindowFunction<Stats, Tuple2<HourOfDayKey, Stats>, HourOfDayKey, TimeWindow> {
 
   @Override

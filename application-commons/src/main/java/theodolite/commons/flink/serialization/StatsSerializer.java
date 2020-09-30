@@ -9,7 +9,8 @@ import com.google.common.math.Stats;
 import java.io.Serializable;
 
 /**
- * Custom Kryo Serializer for efficient transmission between Flink instances.
+ * Kryo serializer and deserializer for the {@link Stats}.
+ * Used for Flink internal serialization to improve performance by uc3 and uc4.
  */
 public class StatsSerializer extends Serializer<Stats> implements Serializable {
 

@@ -13,12 +13,15 @@ import java.util.Properties;
 
 /**
  * The History Microservice Flink Job.
+ * This job transforms each record in the input topic to a string
+ * and prints it to the standard output.
  */
 public class HistoryServiceFlinkJob {
 
   private final Configuration config = Configurations.create();
 
   private void run() {
+    // Configurations
     final String applicationName = this.config.getString(ConfigurationKeys.APPLICATION_NAME);
     final String applicationVersion = this.config.getString(ConfigurationKeys.APPLICATION_VERSION);
     final String applicationId = applicationName + "-" + applicationVersion;
@@ -27,6 +30,7 @@ public class HistoryServiceFlinkJob {
     final String inputTopic = this.config.getString(ConfigurationKeys.KAFKA_INPUT_TOPIC);
     final boolean checkpointing = this.config.getBoolean(ConfigurationKeys.CHECKPOINTING, true);
 
+    // Source setup
     final Properties kafkaProps = new Properties();
     kafkaProps.setProperty("bootstrap.servers", kafkaBroker);
     kafkaProps.setProperty("group.id", applicationId);
@@ -42,12 +46,13 @@ public class HistoryServiceFlinkJob {
     if (checkpointing)
       kafkaConsumer.setCommitOffsetsOnCheckpoints(true);
 
+    // Get a Stream Execution Environment and enable checkpointing if configured
     final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
     if (checkpointing)
       env.enableCheckpointing(commitIntervalMs);
 
+    // Streaming data flow
     final DataStream<ActivePowerRecord> stream = env.addSource(kafkaConsumer);
-
     stream
         .rebalance()
         .map(v -> "ActivePowerRecord { "
@@ -56,6 +61,7 @@ public class HistoryServiceFlinkJob {
             + "valueInW: " + v.getValueInW() + " }")
         .print();
 
+    // Execute the job
     try {
       env.execute(applicationId);
     } catch (Exception e) {

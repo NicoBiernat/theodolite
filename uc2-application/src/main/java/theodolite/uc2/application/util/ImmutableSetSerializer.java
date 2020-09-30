@@ -8,6 +8,10 @@ import com.esotericsoftware.kryo.io.Output;
 import java.io.Serializable;
 import java.util.Set;
 
+/**
+ * Kryo serializer and deserializer for a {@link Set}.
+ * Used for Flink internal serialization to improve performance.
+ */
 public final class ImmutableSetSerializer extends Serializer<Set<Object>> implements Serializable {
 
   public ImmutableSetSerializer() {
@@ -30,18 +34,5 @@ public final class ImmutableSetSerializer extends Serializer<Set<Object>> implem
       list[i] = kryo.readClassAndObject(input);
     }
     return Set.of(list);
-  }
-
-  /**
-   * Creates a new {@link ImmutableSetSerializer} and registers its serializer
-   * for the several related classes
-   *
-   * @param kryo the {@link Kryo} instance to set the serializer on
-   */
-  public static void registerSerializers(Kryo kryo) {
-    final ImmutableSetSerializer serializer = new ImmutableSetSerializer();
-    kryo.register(Set.of().getClass(), serializer);
-    kryo.register(Set.of(1).getClass(), serializer);
-    kryo.register(Set.of(1, 2, 3, 4).getClass(), serializer);
   }
 }

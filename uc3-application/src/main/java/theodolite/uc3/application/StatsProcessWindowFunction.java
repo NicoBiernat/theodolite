@@ -6,6 +6,9 @@ import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
 
+/**
+ * This {@link ProcessWindowFunction} runs after the rolling aggregation for adding the key back to the result
+ */
 public class StatsProcessWindowFunction extends ProcessWindowFunction<Stats, Tuple2<String, Stats>, String, TimeWindow> {
 
   private static final long serialVersionUID = 4363099880614593379L;

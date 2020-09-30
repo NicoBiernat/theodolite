@@ -20,6 +20,8 @@ spec:
               value: "{{KAFKA_STREAMS_COMMIT_INTERVAL_MS}}"
             - name: JOB_MANAGER_RPC_ADDRESS
               value: "flink-jobmanager"
+            - name: CHECKPOINTING
+              value: "true"
             - name: FLINK_PROPERTIES
               value: |+
                 blob.server.port: 6124
@@ -52,8 +54,6 @@ spec:
           volumeMounts:
             - name: flink-config-volume-rw
               mountPath: /opt/flink/conf
-#            - name: job-artifacts-volume
-#              mountPath: /opt/flink/usrlib
           securityContext:
             runAsUser: 9999  # refers to user _flink_ from official flink image, change if necessary
       initContainers:
@@ -76,6 +76,3 @@ spec:
                 path: log4j-console.properties
         - name: flink-config-volume-rw
           emptyDir: {}
-#        - name: job-artifacts-volume
-#          hostPath:
-#            path: /host/path/to/job/artifacts

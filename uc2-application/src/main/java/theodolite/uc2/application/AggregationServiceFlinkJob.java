@@ -1,5 +1,8 @@
 package theodolite.uc2.application;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonParser;
 import org.apache.commons.configuration2.Configuration;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.MapFunction;
@@ -44,6 +47,7 @@ import java.util.Set;
 
 /**
  * The Aggregation Microservice Flink Job.
+ * This job hierarchically aggregates sensor records using a sensor configuration.
  */
 public class AggregationServiceFlinkJob {
 
@@ -64,7 +68,7 @@ public class AggregationServiceFlinkJob {
     final Duration windowGrace = Duration.ofMillis(this.config.getLong(ConfigurationKeys.WINDOW_GRACE_MS));
     final String configurationTopic = this.config.getString(ConfigurationKeys.CONFIGURATION_KAFKA_TOPIC);
     final String stateBackend = this.config.getString(ConfigurationKeys.FLINK_STATE_BACKEND, "").toLowerCase();
-    final String stateBackendPath = this.config.getString(ConfigurationKeys.FLINK_STATE_BACKEND_PATH, "/opt/flink/statebackend");
+    final String stateBackendPath = this.config.getString(ConfigurationKeys.FLINK_STATE_BACKEND_PATH, "file:///opt/flink/statebackend");
     final int memoryStateBackendSize = this.config.getInt(ConfigurationKeys.FLINK_STATE_BACKEND_MEMORY_SIZE, MemoryStateBackend.DEFAULT_MAX_STATE_SIZE);
     final boolean debug = this.config.getBoolean(ConfigurationKeys.DEBUG, true);
     final boolean checkpointing = this.config.getBoolean(ConfigurationKeys.CHECKPOINTING, true);
@@ -133,9 +137,6 @@ public class AggregationServiceFlinkJob {
     kafkaAggregationSink.setWriteTimestampToKafka(true);
 
     // Execution environment configuration
-//    org.apache.flink.configuration.Configuration conf = new org.apache.flink.configuration.Configuration();
-//    conf.setBoolean(ConfigConstants.LOCAL_START_WEBSERVER, true);
-//    final StreamExecutionEnvironment env = StreamExecutionEnvironment.createLocalEnvironmentWithWebUI(conf);
     final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
     env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
@@ -217,9 +218,11 @@ public class AggregationServiceFlinkJob {
             .map(new MapFunction<Tuple2<Event, String>, SensorRegistry>() {
               @Override
               public SensorRegistry map(Tuple2<Event, String> tuple) {
-//                Gson gson = new GsonBuilder().setPrettyPrinting().create();
-//                String prettyJsonString = gson.toJson(new JsonParser().parse(tuple.f1));
-//                LOGGER.info("SensorRegistry: " + prettyJsonString);
+                if (debug) {
+                  Gson gson = new GsonBuilder().setPrettyPrinting().create();
+                  String prettyJsonString = gson.toJson(new JsonParser().parse(tuple.f1));
+                  LOGGER.info("SensorRegistry: " + prettyJsonString);
+                }
                 return SensorRegistry.fromJson(tuple.f1);
               }
             }).name("[Map] JSON -> SensorRegistry")
@@ -227,28 +230,13 @@ public class AggregationServiceFlinkJob {
             .flatMap(new ChildParentsFlatMapFunction())
             .name("[FlatMap] SensorRegistry -> (ChildSensor, ParentSensor[])");
 
+    // Duplicate incoming records based on the sensor config
     DataStream<Tuple2<SensorParentKey, ActivePowerRecord>> lastValueStream =
         mergedInputStream.connect(configurationsStream)
             .keyBy(ActivePowerRecord::getIdentifier,
                 ((KeySelector<Tuple2<String, Set<String>>, String>) t -> (String) t.f0))
             .flatMap(new JoinAndDuplicateCoFlatMapFunction())
             .name("[CoFlatMap] Join input-config, Flatten to ((Sensor, Group), ActivePowerRecord)");
-
-//    KeyedStream<ActivePowerRecord, String> keyedStream =
-//        mergedInputStream.keyBy(ActivePowerRecord::getIdentifier);
-//
-//    MapStateDescriptor<String, Set<String>> sensorConfigStateDescriptor =
-//        new MapStateDescriptor<>(
-//            "join-and-duplicate-state",
-//            BasicTypeInfo.STRING_TYPE_INFO,
-//            TypeInformation.of(new TypeHint<Set<String>>() {}));
-//
-//    BroadcastStream<Tuple2<String, Set<String>>> broadcastStream =
-//        configurationsStream.keyBy(t -> t.f0).broadcast(sensorConfigStateDescriptor);
-//
-//    DataStream<Tuple2<SensorParentKey, ActivePowerRecord>> lastValueStream =
-//        keyedStream.connect(broadcastStream)
-//        .process(new JoinAndDuplicateKeyedBroadcastProcessFunction());
 
     if (debug) {
       lastValueStream
@@ -264,6 +252,7 @@ public class AggregationServiceFlinkJob {
           .print();
     }
 
+    // Aggregate records by group inside of tumbling windows
     DataStream<AggregatedActivePowerRecord> aggregationStream = lastValueStream
         .rebalance()
         .assignTimestampsAndWatermarks(WatermarkStrategy.forBoundedOutOfOrderness(windowGrace))

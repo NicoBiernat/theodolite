@@ -10,8 +10,10 @@ spec:
       appScope: titan-ccp
   resources:
     requests:
+      cpu: 2000m
       memory: 400Mi
     limits:
+      cpu: 2000m
       memory: 400Mi
   #scrapeInterval: 1s
   enableAdminAPI: true

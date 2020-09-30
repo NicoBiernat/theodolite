@@ -22,6 +22,12 @@ spec:
               value: "flink-jobmanager"
             - name: DEBUG
               value: "false"
+            - name: CHECKPOINTING
+              value: "true"
+            - name: FLINK_STATE_BACKEND
+              value: "rocksdb"
+            - name: FLINK_STATE_BACKEND_PATH
+              value: "file:///opt/flink/statebackend"
             - name: FLINK_PROPERTIES
               value: |+
                 blob.server.port: 6124

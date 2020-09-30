@@ -14,13 +14,30 @@ import theodolite.uc2.application.util.SensorParentKey;
 import titan.ccp.models.records.ActivePowerRecord;
 import titan.ccp.models.records.AggregatedActivePowerRecord;
 
+/**
+ * This {@link ProcessWindowFunction} aggregates all records in a window correctly,
+ * such that each sensor contributes to the aggregation result exactly once.
+ * If a sensors record is not part of the window, the previous value of that sensor (if exists)
+ * is used instead.
+ */
 public class RecordAggregationProcessWindowFunction extends ProcessWindowFunction<Tuple2<SensorParentKey, ActivePowerRecord>, AggregatedActivePowerRecord, String, TimeWindow> {
 
   private static final long serialVersionUID = 6030159552332624435L;
 
+  /**
+   * Operator map state: stores last values for every sensor
+   */
   private transient MapState<SensorParentKey, ActivePowerRecord> lastValueState;
+  /**
+   * Operator value state: stores last aggregation value
+   */
   private transient ValueState<AggregatedActivePowerRecord> aggregateState;
 
+  /**
+   * Sets up the shared operator state.
+   * @param parameters
+   *  configuration (unused)
+   */
   @Override
   public void open(org.apache.flink.configuration.Configuration parameters) {
     final MapStateDescriptor<SensorParentKey, ActivePowerRecord> lastValueStateDescriptor =
@@ -40,9 +57,22 @@ public class RecordAggregationProcessWindowFunction extends ProcessWindowFunctio
     this.aggregateState = getRuntimeContext().getState(aggregateStateDescriptor);
   }
 
+  /**
+   * Aggregates the records in the window.
+   * @param key
+   *  the key that this window is keyed by
+   * @param context
+   *  additional context
+   * @param elements
+   *  all records contained in the window
+   * @param out
+   *  the collector for emitting records
+   * @throws Exception
+   */
   @Override
   public void process(String key, Context context, Iterable<Tuple2<SensorParentKey, ActivePowerRecord>> elements, Collector<AggregatedActivePowerRecord> out) throws Exception {
     for (Tuple2<SensorParentKey, ActivePowerRecord> t : elements) {
+      // first retrieve the current aggregate value or create a new one with sensible initial values
       AggregatedActivePowerRecord currentAggregate = this.aggregateState.value();
       if (currentAggregate == null) {
         currentAggregate = new AggregatedActivePowerRecord(key, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, 0, 0, 0);
@@ -50,6 +80,7 @@ public class RecordAggregationProcessWindowFunction extends ProcessWindowFunctio
       }
       long count = currentAggregate.getCount();
 
+      // get the combined key and the value from the element
       final SensorParentKey sensorParentKey = t.f0;
       ActivePowerRecord newRecord = t.f1;
       if (newRecord == null) { // sensor was deleted -> decrease count, set newRecord to zero
@@ -64,6 +95,7 @@ public class RecordAggregationProcessWindowFunction extends ProcessWindowFunctio
         previousRecord = new ActivePowerRecord(sensorParentKey.getSensor(), 0, 0.0);
       }
 
+      // ensure that always the latest record is used
       // if incoming record is older than the last saved record, skip the record
       if (newRecord.getTimestamp() < previousRecord.getTimestamp()) {
         continue;
@@ -71,7 +103,9 @@ public class RecordAggregationProcessWindowFunction extends ProcessWindowFunctio
 
       // prefer newer timestamp, but use previous if 0 -> sensor was deleted
       long timestamp = newRecord.getTimestamp() == 0 ? previousRecord.getTimestamp() : newRecord.getTimestamp();
+      // calculate new sum by subtracting the previous value and adding the new value
       double sumInW = currentAggregate.getSumInW() - previousRecord.getValueInW() + newRecord.getValueInW();
+      // recalculate the average
       double avgInW = count == 0 ? 0 : sumInW / count;
 
       AggregatedActivePowerRecord newAggregate = new AggregatedActivePowerRecord(
@@ -89,7 +123,7 @@ public class RecordAggregationProcessWindowFunction extends ProcessWindowFunctio
       this.aggregateState.update(newAggregate);
     }
 
-    // emit aggregated record
+    // emit one aggregated record per window
     out.collect(this.aggregateState.value());
   }
 }

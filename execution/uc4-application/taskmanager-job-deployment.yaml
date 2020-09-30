@@ -30,6 +30,8 @@ spec:
               value: "rocksdb"
             - name: FLINK_STATE_BACKEND_PATH
               value: "file:///opt/flink/statebackend"
+            - name: CHECKPOINTING
+              value: "false"
             - name: FLINK_PROPERTIES
               value: |+
                 blob.server.port: 6124

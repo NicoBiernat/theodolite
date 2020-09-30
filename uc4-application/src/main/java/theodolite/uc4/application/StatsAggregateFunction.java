@@ -8,6 +8,7 @@ import titan.ccp.models.records.ActivePowerRecord;
 
 /**
  * Statistical aggregation of {@link ActivePowerRecord}s using {@link Stats}.
+ * The use of the {@link AggregateFunction} ensures a rolling aggregation.
  */
 @SuppressWarnings("UnstableApiUsage")
 public class StatsAggregateFunction implements AggregateFunction<ActivePowerRecord, Stats, Stats> {

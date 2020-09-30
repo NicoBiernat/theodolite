@@ -30,3 +30,6 @@ tmp/
 
 # Python Venv
 .venv
+
+# Jupyter checkpoints
+.ipynb_checkpoints/

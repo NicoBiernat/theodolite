@@ -19,6 +19,8 @@ services:
     image: nicobiernat/theodolite-flink-uc2:latest
     ports:
       - "8081:8081"
+    expose:
+      - "8081"
     command: standalone-job --job-classname theodolite.uc2.application.AggregationServiceFlinkJob
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092

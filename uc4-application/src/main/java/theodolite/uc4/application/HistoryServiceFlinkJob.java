@@ -40,7 +40,9 @@ import java.util.Properties;
 
 
 /**
- * The History Microservice Flink Job.
+ * The History Microservice Flink Job (modified for time attribute based aggregation).
+ * This job aggregates records using overlapping sliding time windows based on the time attribute
+ * day of week.
  */
 public class HistoryServiceFlinkJob {
 
@@ -62,15 +64,15 @@ public class HistoryServiceFlinkJob {
     final Time aggregationDuration = Time.days(this.config.getInt(ConfigurationKeys.AGGREGATION_DURATION_DAYS));
     final Time aggregationAdvance = Time.days(this.config.getInt(ConfigurationKeys.AGGREGATION_ADVANCE_DAYS));
     final String stateBackend = this.config.getString(ConfigurationKeys.FLINK_STATE_BACKEND, "").toLowerCase();
-    final String stateBackendPath = this.config.getString(ConfigurationKeys.FLINK_STATE_BACKEND_PATH, "/opt/flink/statebackend");
+    final String stateBackendPath = this.config.getString(ConfigurationKeys.FLINK_STATE_BACKEND_PATH, "file:///opt/flink/statebackend");
     final int memoryStateBackendSize = this.config.getInt(ConfigurationKeys.FLINK_STATE_BACKEND_MEMORY_SIZE, MemoryStateBackend.DEFAULT_MAX_STATE_SIZE);
     final boolean checkpointing= this.config.getBoolean(ConfigurationKeys.CHECKPOINTING, true);
 
+    // Source setup
     final Properties kafkaProps = new Properties();
     kafkaProps.setProperty("bootstrap.servers", kafkaBroker);
     kafkaProps.setProperty("group.id", applicationId);
 
-    // Sources and Sinks with Serializer and Deserializer
 
     final FlinkMonitoringRecordSerde<ActivePowerRecord, ActivePowerRecordFactory> sourceSerde =
         new FlinkMonitoringRecordSerde<>(
@@ -86,6 +88,7 @@ public class HistoryServiceFlinkJob {
       kafkaSource.setCommitOffsetsOnCheckpoints(true);
     kafkaSource.assignTimestampsAndWatermarks(WatermarkStrategy.forMonotonousTimestamps());
 
+    // Sink setup
     final FlinkKafkaKeyValueSerde<String, String> sinkSerde =
         new FlinkKafkaKeyValueSerde<>(outputTopic,
             Serdes::String,
@@ -98,7 +101,6 @@ public class HistoryServiceFlinkJob {
     kafkaSink.setWriteTimestampToKafka(true);
 
     // Execution environment configuration
-
     final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
     env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
@@ -131,8 +133,7 @@ public class HistoryServiceFlinkJob {
         LOGGER.info("Class " + c.getName() + " registered with serializer "
             + s.getSerializer().getClass().getName()));
 
-    // Streaming topology
-
+    // Streaming data flow
     final StatsKeyFactory<HourOfDayKey> keyFactory = new HourOfDayKeyFactory();
 
     final DataStream<ActivePowerRecord> stream = env.addSource(kafkaSource)
@@ -160,13 +161,11 @@ public class HistoryServiceFlinkJob {
         .addSink(kafkaSink).name("[Kafka Producer] Topic: " + outputTopic);
 
     // Execution plan
-
     if (LOGGER.isInfoEnabled()) {
       LOGGER.info("Execution Plan: " + env.getExecutionPlan());
     }
 
     // Execute Job
-
     try {
       env.execute(applicationId);
     } catch (Exception e) {

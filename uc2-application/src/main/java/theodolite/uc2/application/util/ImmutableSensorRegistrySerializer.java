@@ -8,6 +8,10 @@ import titan.ccp.model.sensorregistry.ImmutableSensorRegistry;
 
 import java.io.Serializable;
 
+/**
+ * Kryo serializer and deserializer for the {@link ImmutableSensorRegistry}.
+ * Used for Flink internal serialization to improve performance.
+ */
 public class ImmutableSensorRegistrySerializer extends Serializer<ImmutableSensorRegistry> implements Serializable {
 
   private static final long serialVersionUID = 1806411056006113017L;

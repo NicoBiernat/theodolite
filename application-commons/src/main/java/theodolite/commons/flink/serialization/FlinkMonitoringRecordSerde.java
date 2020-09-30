@@ -67,7 +67,7 @@ public class FlinkMonitoringRecordSerde<R extends IMonitoringRecord, F extends I
 
   @Override
   public boolean isEndOfStream(final R nextElement) {
-    return false;
+    return false; // unbounded stream
   }
 
   @Override

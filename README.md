@@ -1,3 +1,8 @@
+# About this repository
+This project is a fork of the Theodolite project.
+It was created as part of my bachelor thesis on Scalability Benchmarking of Apache Flink.
+Modifications were made to the use case implementations as well as the deployment and execution framework in order to carry out scalability benchmarks for Apache Flink instead of Kafka Streams.
+
 # Theodolite
 
 > A theodolite is a precision optical instrument for measuring angles between designated visible points in the horizontal and vertical planes.  -- <cite>[Wikipedia](https://en.wikipedia.org/wiki/Theodolite)</cite>
@@ -6,7 +11,7 @@ Theodolite is a framework for benchmarking the horizontal and vertical scalabili
 
 ## Theodolite Benchmarks
 
-Theodolite contains 4 application benchmarks, which are based on typical use cases for stream processing within microservices. For each benchmark, a corresponding workload generator is provided. Currently, this repository provides benchmark implementations for Kafka Streams.
+Theodolite contains 4 application benchmarks, which are based on typical use cases for stream processing within microservices. For each benchmark, a corresponding workload generator is provided. This fork provides benchmark implementations for Apache Flink. The upstream repository provides benchmark implementations for Kafka Streams. 
 
 
 ## Theodolite Execution Framework

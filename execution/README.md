@@ -2,7 +2,7 @@
 
 This directory contains the Theodolite framework for executing scalability
 benchmarks in a Kubernetes cluster. As Theodolite aims for executing benchmarks
-in realistic execution environments,, some third-party components are [required](#requirements).
+in realistic execution environments, some third-party components are [required](#requirements).
 After everything is installed and configured, you can move on the [execution of
 benchmarks](#execution).
 
@@ -67,6 +67,8 @@ Create the Configmap for the data source:
 kubectl apply -f infrastructure/grafana/prometheus-datasource-config-map.yaml
 ```
 
+In order to use the Flink Dashboard, import the JSON located in infrastructure/grafana/flink-scalability-benchmarking-dashboard.json from the UI.
+
 #### A Kafka cluster
 
 One possible way to set up a Kafka cluster is via [Confluent's Helm Charts](https://github.com/confluentinc/cp-helm-charts).
@@ -97,9 +99,9 @@ kubectl apply -f infrastructure/kafka/service-monitor.yaml
 
 Other Kafka deployments, for example, using Strimzi, should work in a similar way.
 
-#### A Kafka Client Pod
+#### A Kafka Client Deployment
 
-A permanently running pod used for Kafka configuration is started via:
+A deployment of a permanently running pod used for Kafka configuration is started via:
 
 ```sh
 kubectl apply -f infrastructure/kafka/kafka-client.yaml 
@@ -112,9 +114,9 @@ can be installed via Helm. We also provide a [default configuration](infrastruct
 To install it:
 
 ```sh
-helm install kafka-lag-exporter https://github.com/lightbend/kafka-lag-exporter/releases/download/v0.6.0/kafka-lag-exporter-0.6.0.tgz -f infrastructure/kafka-lag-exporter/values.yaml
+helm install kafka-lag-exporter https://github.com/lightbend/kafka-lag-exporter/releases/download/v0.6.3/kafka-lag-exporter-0.6.3.tgz -f infrastructure/kafka-lag-exporter/values.yaml
 ```
-
+Note: use version 0.6.3 to work with Flink, versions < 0.6.3 did not pick up the consumer offset that Flink commits
 
 ### Python 3.7
 
@@ -128,20 +130,12 @@ pip install -r requirements.txt
 ```
 
 ### Apache Flink
-For executing benchmarks implemented with Apache Flink, we need to create a Flink Job Cluster in Kubernetes.
-First, we create the common resources ConfigMap for the cluster and Service for the JobManager and its REST interface. 
-```
-kubectl apply -f kubernetes-flink/flink-configuration-configmap.yaml
-kubectl apply -f kubernetes-flink/jobmanager-service.yaml
-kubectl apply -f kubernetes-flink/jobmanager-rest-service.yaml
-```
-After that, continue with the Job Cluster specific resources Job for the JobManager and Deployment for the TaskManagers.
-TODO: This should be taken care of by the scripts!
-```
-kubectl apply -f kubernetes-flink/jobmanager-job.yaml
-kubectl apply -f kubernetes-flink/taskmanager-job-deployment.yaml
-```
-
+The setup of the Flink cluster is taken care of by the run scripts.
+The number of taskslots should be configured inside of the run_uc*-new.sh scripts,
+as the Flink parallelism is calculated by multiplication of the number of taskslots with the number of instances.
+Additional Flink configurations can be added through the flink configmap file
+and the job configuration through environment variables in the jobmanager-job and taskmanager-job-deployment files.
+Those files are located in the uc*-application directories.
 
 ### Required Manual Adjustments
 
@@ -164,10 +158,10 @@ The `./run_loop.sh` is the entrypoint for all benchmark executions. Is has to be
 ```
 
 * `<use-case>`: Stream processing use case to be benchmarked. Has to be one of `1`, `2`, `3` or `4`.
-* `<wl-values>`: Values for the workload generator to be tested, separated by commas. For example `100000, 200000, 300000`.
-* `<instances>`: Numbers of instances to be benchmarked, separated by commas. For example `1, 2, 3, 4`.
+* `<wl-values>`: Values for the workload generator to be tested, separated by commas. For example `100000,200000,300000`.
+* `<instances>`: Numbers of instances to be benchmarked, separated by commas. For example `1,2,3,4`.
 * `<partitions>`: Number of partitions for Kafka topics. Optional. Default `40`.
 * `<cpu-limit>`: Kubernetes CPU limit. Optional. Default `1000m`.
-* `<memory-limit>`: Kubernetes memory limit. Optional. Default `4Gi`.
-* `<commit-interval>`: Kafka Streams' commit interval in milliseconds. Optional. Default `100`.
+* `<memory-limit>`: Kubernetes and Flink memory limit. Optional. Default `4G`. (only use M or G not Mi or Gi in order to work with Flink)
+* `<commit-interval>`: Flink checkpointing interval and Kafka commit interval in milliseconds. Optional. Default `100`.
 * `<duration>`: Duration in minutes subexperiments should be executed for. Optional. Default `5`.

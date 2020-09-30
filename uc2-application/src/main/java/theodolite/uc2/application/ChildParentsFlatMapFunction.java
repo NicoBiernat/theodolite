@@ -28,8 +28,16 @@ public class ChildParentsFlatMapFunction extends RichFlatMapFunction<SensorRegis
 
   private static final long serialVersionUID = 3969444219510915221L;
 
+  /**
+   * Operator map state: child sensor -> set of parent sensors
+   */
   private transient MapState<String, Set<String>> state;
 
+  /**
+   * Sets up the operator state.
+   * @param parameters
+   *  additional configuration (unused)
+   */
   @Override
   public void open(Configuration parameters) {
     MapStateDescriptor<String, Set<String>> descriptor =
@@ -40,6 +48,14 @@ public class ChildParentsFlatMapFunction extends RichFlatMapFunction<SensorRegis
     this.state = getRuntimeContext().getMapState(descriptor);
   }
 
+  /**
+   * The FlatMap functions implementation
+   * @param value
+   *  the sensor registry
+   * @param out
+   *  the collector for emitting records
+   * @throws Exception
+   */
   @Override
   public void flatMap(SensorRegistry value, Collector<Tuple2<String, Set<String>>> out)
       throws Exception {
@@ -53,6 +69,13 @@ public class ChildParentsFlatMapFunction extends RichFlatMapFunction<SensorRegis
         .forEach(out::collect);
   }
 
+  /**
+   * Creates pairs of a child sensor with all of its parent sensors from a sensor registry.
+   * @param registry
+   *   the sensor registry
+   * @return
+   *  a map of sensor to a set of its parent sensors
+   */
   private Map<String, Set<String>> constructChildParentsPairs(final SensorRegistry registry) {
     return this.streamAllChildren(registry.getTopLevelSensor())
         .collect(Collectors.toMap(
@@ -62,6 +85,13 @@ public class ChildParentsFlatMapFunction extends RichFlatMapFunction<SensorRegis
                 .orElseGet(Set::of)));
   }
 
+  /**
+   * Returns a stream of all children sensors from an aggregated sensor recursively.
+   * @param sensor
+   *  the aggregated sensor
+   * @return
+   *  the stream of all children sensors
+   */
   private Stream<Sensor> streamAllChildren(final AggregatedSensor sensor) {
     return sensor.getChildren().stream()
         .flatMap(s -> Stream.concat(
@@ -70,6 +100,13 @@ public class ChildParentsFlatMapFunction extends RichFlatMapFunction<SensorRegis
                 : Stream.empty()));
   }
 
+  /**
+   * Updates a map of sensor to a set of parent sensors
+   * by using the operator state to identify changes to the configuration.
+   * @param childParentsPairs
+   *  the map of sensor to a set of parent sensors
+   * @throws Exception
+   */
   private void updateChildParentsPairs(final Map<String, Set<String>> childParentsPairs)
       throws Exception {
     final Iterator<Map.Entry<String, Set<String>>> oldChildParentsPairs = this.state.iterator();
@@ -89,6 +126,12 @@ public class ChildParentsFlatMapFunction extends RichFlatMapFunction<SensorRegis
     }
   }
 
+  /**
+   * Updates the operator map state state with a new map
+   * @param childParentsPairs
+   *  the new map
+   * @throws Exception
+   */
   private void updateState(final Map<String, Set<String>> childParentsPairs) throws Exception {
     for (final Map.Entry<String, Set<String>> childParentPair : childParentsPairs.entrySet()) {
       if (childParentPair.getValue() == null) {

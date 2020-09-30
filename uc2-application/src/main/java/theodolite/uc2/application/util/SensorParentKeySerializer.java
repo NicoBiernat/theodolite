@@ -8,7 +8,8 @@ import com.esotericsoftware.kryo.io.Output;
 import java.io.Serializable;
 
 /**
- * Kryo serializer for {@link SensorParentKey}.
+ * Kryo serializer and deserializer for the {@link SensorParentKey}.
+ * Used for Flink internal serialization to improve performance.
  */
 public final class SensorParentKeySerializer extends Serializer<SensorParentKey> implements Serializable {
 

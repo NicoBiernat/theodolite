@@ -33,7 +33,9 @@ import java.util.Properties;
 
 
 /**
- * The History Microservice Flink Job.
+ * The History Microservice Flink Job (modified for downsampling).
+ * This job downsamples incoming sensor records by aggregating them in consecutive time windows
+ * and outputting one record per window.
  */
 public class HistoryServiceFlinkJob {
 
@@ -42,6 +44,7 @@ public class HistoryServiceFlinkJob {
   private final Configuration config = Configurations.create();
 
   private void run() {
+    // Configuration
     final String applicationName = this.config.getString(ConfigurationKeys.APPLICATION_NAME);
     final String applicationVersion = this.config.getString(ConfigurationKeys.APPLICATION_VERSION);
     final String applicationId = applicationName + "-" + applicationVersion;
@@ -51,10 +54,11 @@ public class HistoryServiceFlinkJob {
     final String outputTopic = this.config.getString(ConfigurationKeys.KAFKA_OUTPUT_TOPIC);
     final int windowDuration = this.config.getInt(ConfigurationKeys.KAFKA_WINDOW_DURATION_MINUTES);
     final String stateBackend = this.config.getString(ConfigurationKeys.FLINK_STATE_BACKEND, "").toLowerCase();
-    final String stateBackendPath = this.config.getString(ConfigurationKeys.FLINK_STATE_BACKEND_PATH, "/opt/flink/statebackend");
+    final String stateBackendPath = this.config.getString(ConfigurationKeys.FLINK_STATE_BACKEND_PATH, "file:///opt/flink/statebackend");
     final int memoryStateBackendSize = this.config.getInt(ConfigurationKeys.FLINK_STATE_BACKEND_MEMORY_SIZE, MemoryStateBackend.DEFAULT_MAX_STATE_SIZE);
     final boolean checkpointing= this.config.getBoolean(ConfigurationKeys.CHECKPOINTING, true);
 
+    // Source setup
     final Properties kafkaProps = new Properties();
     kafkaProps.setProperty("bootstrap.servers", kafkaBroker);
     kafkaProps.setProperty("group.id", applicationId);
@@ -73,6 +77,7 @@ public class HistoryServiceFlinkJob {
       kafkaSource.setCommitOffsetsOnCheckpoints(true);
     kafkaSource.assignTimestampsAndWatermarks(WatermarkStrategy.forMonotonousTimestamps());
 
+    // Sink setup
     final FlinkKafkaKeyValueSerde<String, String> sinkSerde =
         new FlinkKafkaKeyValueSerde<>(outputTopic,
             Serdes::String,
@@ -84,6 +89,7 @@ public class HistoryServiceFlinkJob {
         outputTopic, sinkSerde, kafkaProps, FlinkKafkaProducer.Semantic.AT_LEAST_ONCE);
     kafkaSink.setWriteTimestampToKafka(true);
 
+    // Get a StreamExecutionEnvironment
     final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
     env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
@@ -103,6 +109,7 @@ public class HistoryServiceFlinkJob {
       env.setStateBackend(new MemoryStateBackend(memoryStateBackendSize));
     }
 
+    // Register Kryo serializers
     env.getConfig().registerTypeWithKryoSerializer(ActivePowerRecord.class,
         new FlinkMonitoringRecordSerde<>(
             inputTopic,
@@ -114,6 +121,7 @@ public class HistoryServiceFlinkJob {
         LOGGER.info("Class " + c.getName() + " registered with serializer "
             + s.getSerializer().getClass().getName()));
 
+    // Streaming data flow
     final DataStream<ActivePowerRecord> stream = env.addSource(kafkaSource)
         .name("[Kafka Consumer] Topic: " + inputTopic);
 
@@ -133,10 +141,12 @@ public class HistoryServiceFlinkJob {
         }).name("map")
         .addSink(kafkaSink).name("[Kafka Producer] Topic: " + outputTopic);
 
+    // Execution plan
     if (LOGGER.isInfoEnabled()) {
       LOGGER.info("Execution Plan: " + env.getExecutionPlan());
     }
 
+    // Execute the job
     try {
       env.execute(applicationId);
     } catch (Exception e) {
