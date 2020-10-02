@@ -1,7 +1,11 @@
 # About this repository
 This project is a fork of the Theodolite project.
 It was created as part of my bachelor thesis on Scalability Benchmarking of Apache Flink.
-Modifications were made to the use case implementations as well as the deployment and execution framework in order to carry out scalability benchmarks for Apache Flink instead of Kafka Streams.
+Modifications were made to the use case implementations as well as the deployment and execution framework in order to carry out scalability benchmarks for Apache Flink instead of Kafka Streams.  
+
+The experiment results including the scalability graphs are publicly available on Zenodo: 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.4063615.svg)](https://doi.org/10.5281/zenodo.4063615)
+
 
 # Theodolite
 
